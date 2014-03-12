@@ -3126,6 +3126,36 @@ class CompositeLayer(Layer):
         for layer in self.layers:
             layer.set_mlp(mlp)
 
+    @wraps(Layer.get_weight_decay)
+    def get_weight_decay(self, coeffs):
+        
+        # check the case where coeffs is a scalar
+        if not hasattr(coeffs, '__iter__'):
+            coeffs = [coeffs]*len(self.layers)
+        
+        layer_costs = [layer.get_weight_decay(coeff) \
+                    for layer, coeff in safe_izip(self.layers, coeffs)]
+        
+        total_cost = reduce(lambda x, y: x + y, layer_costs)
+        
+        return total_cost
+    
+    @wraps(Layer.get_l1_weight_decay)
+    def get_l1_weight_decay(self, coeffs):
+        
+        # check the case where coeffs is a scalar
+        if not hasattr(coeffs, '__iter__'):
+            coeffs = [coeffs]*len(self.layers)
+        
+        layer_costs = [layer.get_l1_weight_decay(coeff) \
+                    for layer, coeff in safe_izip(self.layers, coeffs)]
+        
+        total_cost = reduce(lambda x, y: x + y, layer_costs)
+        
+        return total_cost
+
+
+
 
 class FlattenerLayer(Layer):
     """
@@ -3211,6 +3241,16 @@ class FlattenerLayer(Layer):
     def get_weights(self):
 
         return self.raw_layer.get_weights()
+
+    @wraps(Layer.get_weight_decay)
+    def get_weight_decay(self, coeffs):
+        
+        return self.raw_layer.get_weight_decay(coeffs)
+    
+    @wraps(Layer.get_l1_weight_decay)
+    def get_l1_weight_decay(self, coeffs):
+        
+        return self.raw_layer.get_l1_weight_decay(coeffs)
 
 
 def generate_dropout_mask(mlp, default_include_prob=0.5,
