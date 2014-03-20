@@ -932,6 +932,20 @@ class Softmax(Layer):
     .. todo::
 
         WRITEME (including parameters list)
+
+    Parameters
+    ----------
+    n_classes : WRITEME
+    layer_name : WRITEME
+    irange : WRITEME
+    istdev : WRITEME
+    sparse_init : WRITEME
+    W_lr_scale : WRITEME
+    b_lr_scale : WRITEME
+    max_row_norm : WRITEME
+    no_affine : WRITEME
+    max_col_norm : WRITEME
+    init_bias_target_marginals : WRITEME
     """
     def __init__(self, n_classes, layer_name, irange=None,
                  istdev=None,
@@ -2094,25 +2108,26 @@ class Sigmoid(Linear):
 
         WRITEME properly
 
-    monitor_style: a string, either 'detection' or 'classification'
-                   'detection' by default
+    Parameters
+    ----------
+    monitor_style: string
+        Values can be either 'detection' or 'classification'.
+        'detection' is the default.
 
-                   if 'detection':
-                       get_monitor_from_state makes no assumptions about
-                       target, reports info about how good model is at
-                       detecting positive bits.
-                       This will monitor precision, recall, and F1 score
-                       based on a detection threshold of 0.5. Note that
-                       these quantities are computed *per-minibatch* and
-                       averaged together. Unless your entire monitoring
-                       dataset fits in one minibatch, this is not the same
-                       as the true F1 score, etc., and will usually
-                       seriously overestimate your performance.
-                    if 'classification':
-                        get_monitor_from_state assumes target is one-hot
-                        class indicator, even though you're training the
-                        model as k independent sigmoids. gives info on how
-                        good the argmax is as a classifier
+        - 'detection' : get_monitor_from_state makes no assumptions about
+            target, reports info about how good model is at
+            detecting positive bits.
+            This will monitor precision, recall, and F1 score
+            based on a detection threshold of 0.5. Note that
+            these quantities are computed *per-minibatch* and
+            averaged together. Unless your entire monitoring
+            dataset fits in one minibatch, this is not the same
+            as the true F1 score, etc., and will usually
+            seriously overestimate your performance.
+        - 'classification' : get_monitor_from_state assumes target is one-hot
+            class indicator, even though you're training the
+            model as k independent sigmoids. gives info on how
+            good the argmax is as a classifier
     """
 
     def __init__(self, monitor_style='detection', **kwargs):
@@ -2417,50 +2432,71 @@ class SpaceConverter(Layer):
 
 class ConvRectifiedLinear(Layer):
     """
-    .. todo::
+    A convolutional rectified linear layer, based on theano's B01C formatted
+    convolution.
 
-        WRITEME
-    .. todo::
+    Parameters
+    ----------
+    output_channels : int
+        The number of output channels the layer should have.
+    kernel_shape : tuple
+        The shape of the convolution kernel.
+    pool_shape : tuple
+        The shape of the spatial max pooling. A two-tuple of ints.
+    pool_stride : tuple
+        The stride of the spatial max pooling. Also must be square.
+    layer_name : str
+        A name for this layer that will be prepended to monitoring channels
+        related to this layer.
+    irange : float
+        if specified, initializes each weight randomly in
+        U(-irange, irange)
+    border_mode : str
+        A string indicating the size of the output:
 
-        WRITEME properly
+        - "full" : The output is the full discrete linear convolution of the
+            inputs.
+        - "valid" : The output consists only of those elements that do not
+            rely on the zero-padding. (Default)
 
-     output_channels: The number of output channels the layer should have.
-     kernel_shape: The shape of the convolution kernel.
-     pool_shape: The shape of the spatial max pooling. A two-tuple of ints.
-     pool_stride: The stride of the spatial max pooling. Also must be
-                  square.
-     layer_name: A name for this layer that will be prepended to
-                 monitoring channels related to this layer.
-     irange: if specified, initializes each weight randomly in
-             U(-irange, irange)
-     border_mode: A string indicating the size of the output:
-        full - The output is the full discrete linear convolution of the
-               inputs.
-        valid - The output consists only of those elements that do not rely
-                on the zero-padding.(Default)
-     include_prob: probability of including a weight element in the set
-                   of weights initialized to U(-irange, irange). If not
-                   included it is initialized to 0.
-     init_bias: All biases are initialized to this number
-     W_lr_scale: The learning rate on the weights for this layer is
-                 multiplied by this scaling factor
-     b_lr_scale: The learning rate on the biases for this layer is
-                 multiplied by this scaling factor
-     left_slope: **TODO**
-     max_kernel_norm: If specifed, each kernel is constrained to have at
-                      most this norm.
-     pool_type: The type of the pooling operation performed the the
-                convolution. Default pooling type is max-pooling.
-     detector_normalization, output_normalization:
-          if specified, should be a callable object. the state of the
-          network is optionally replaced with normalization(state) at each
-          of the 3 points in processing:
-              detector: the maxout units can be normalized prior to the
-                        spatial pooling
-              output: the output of the layer, after sptial pooling, can
-                      be normalized as well
-     kernel_stride: The stride of the convolution kernel. A two-tuple of
-                    ints.
+    include_prob : float
+        probability of including a weight element in the set of weights
+        initialized to U(-irange, irange). If not included it is initialized
+        to 0.
+    init_bias : float
+        All biases are initialized to this number
+    W_lr_scale: float
+        The learning rate on the weights for this layer is multiplied by this
+        scaling factor
+    b_lr_scale : float
+        The learning rate on the biases for this layer is multiplied by this
+        scaling factor
+    left_slope: float
+        The slope of the left half of the activation function
+    max_kernel_norm : float
+        If specifed, each kernel is constrained to have at most this norm.
+    pool_type : WRITEME
+        The type of the pooling operation performed the the convolution.
+        Default pooling type is max-pooling. WRITEME
+    tied_b : bool
+        If true, all biases in the same channel are constrained to be the
+        same as each other. Otherwise, each bias at each location is
+        learned independently.
+    detector_normalization : callable
+        See `output_normalization`
+    output_normalization : callable
+        if specified, should be a callable object. the state of the
+        network is optionally replaced with normalization(state) at each
+        of the 3 points in processing:
+
+        - detector: the maxout units can be normalized prior to the
+            spatial pooling
+        - output: the output of the layer, after sptial pooling, can
+            be normalized as well
+
+        WRITEME: is there input_normalization for thiss class?
+    kernel_stride: The stride of the convolution kernel. A two-tuple of
+        ints.
     """
     def __init__(self,
                  output_channels,
@@ -2478,6 +2514,7 @@ class ConvRectifiedLinear(Layer):
                  left_slope=0.0,
                  max_kernel_norm=None,
                  pool_type='max',
+                 tied_b=False,
                  detector_normalization=None,
                  output_normalization=None,
                  kernel_stride=(1, 1)):
@@ -2567,7 +2604,11 @@ class ConvRectifiedLinear(Layer):
         W, = self.transformer.get_params()
         W.name = 'W'
 
-        self.b = sharedX(self.detector_space.get_origin() + self.init_bias)
+        if self.tied_b:
+            self.b = sharedX(np.zeros((self.detector_space.num_channels)) +
+                             self.init_bias)
+        else:
+            self.b = sharedX(self.detector_space.get_origin() + self.init_bias)
         self.b.name = 'b'
 
         print 'Input shape: ', self.input_space.shape
@@ -2699,7 +2740,16 @@ class ConvRectifiedLinear(Layer):
 
         self.input_space.validate(state_below)
 
-        z = self.transformer.lmul(state_below) + self.b
+        z = self.transformer.lmul(state_below)
+        if not hasattr(self, 'tied_b'):
+            self.tied_b = False
+        if self.tied_b:
+            b = self.b.dimshuffle('x', 0, 'x', 'x')
+        else:
+            b = self.b.dimshuffle('x', 0, 1, 2)
+ 
+        z = z + b
+
         if self.layer_name is not None:
             z.name = self.layer_name + '_z'
 
@@ -2734,6 +2784,18 @@ class ConvRectifiedLinear(Layer):
             p = self.output_normalization(p)
 
         return p
+
+    @wraps(Layer.cost)
+    def cost(self, Y, Y_hat):
+        return self.cost_from_cost_matrix(self.cost_matrix(Y, Y_hat))
+
+    @wraps(Layer.cost_from_cost_matrix)
+    def cost_from_cost_matrix(self, cost_matrix):
+        return cost_matrix.sum(axis=(1,2,3)).mean()
+
+    @wraps(Layer.cost_matrix)
+    def cost_matrix(self, Y, Y_hat):
+        return T.sqr(Y - Y_hat)
 
 
 def max_pool(bc01, pool_shape, pool_stride, image_shape):
