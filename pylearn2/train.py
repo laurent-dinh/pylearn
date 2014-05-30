@@ -3,8 +3,8 @@ __authors__ = "Ian Goodfellow"
 __copyright__ = "Copyright 2010-2012, Universite de Montreal"
 __credits__ = ["Ian Goodfellow"]
 __license__ = "3-clause BSD"
-__maintainer__ = "Ian Goodfellow"
-__email__ = "goodfeli@iro"
+__maintainer__ = "LISA Lab"
+__email__ = "pylearn-dev@googlegroups"
 from datetime import datetime
 import os
 import sys
@@ -154,7 +154,7 @@ class Train(object):
                 self.model.monitor.report_epoch()
                 extension_continue = self.run_callbacks_and_monitoring()
                 freq = self.save_freq
-                if freq > 0 and self.model.monitor.epochs_seen % freq == 0:
+                if freq > 0 and self.model.monitor.get_epochs_seen() % freq == 0:
                     self.save()
                 continue_learning = (self.model.continue_learning() and
                                      extension_continue)
@@ -214,7 +214,7 @@ already been reported."""
                     self.model.monitor.report_epoch()
                     extension_continue = self.run_callbacks_and_monitoring()
                     if self.save_freq > 0 and \
-                       self.model.monitor._epochs_seen % self.save_freq == 0:
+                       self.model.monitor.get_epochs_seen() % self.save_freq == 0:
                         self.save()
                 continue_learning = (
                     self.algorithm.continue_learning(self.model) and
