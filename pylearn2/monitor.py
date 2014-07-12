@@ -509,7 +509,6 @@ class Monitor(object):
         self.register_names_to_del([name for name in final_names
                                     if name not in init_names])
 
-
     def register_names_to_del(self, names):
         """
         Register names of fields that should be deleted before pickling.
