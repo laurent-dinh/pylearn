@@ -482,9 +482,12 @@ class ClockworkRecurrent(Recurrent):
                 u = T.alloc(U[start:stop, :],
                             this_len,
                             self.module_dim)
-                z = T.set_subtensor(z[:, c*self.module_dim:(c+1)*self.module_dim],
-                                    z[:, c*self.module_dim:(c+1)*self.module_dim] +
-                                    T.dot(state_before[:, c*self.module_dim:], u))
+                z = T.set_subtensor(z[:, c * self.module_dim:
+                                      (c + 1) * self.module_dim],
+                                    z[:, c * self.module_dim:
+                                      (c + 1) * self.module_dim] +
+                                    T.dot(state_before[:, c*self.module_dim:],
+                                          u))
                 return z, stop
             ((z, s), updates) = scan(fn=rec_step,
                                      sequences=[clockrate],
@@ -493,7 +496,8 @@ class ClockworkRecurrent(Recurrent):
             z = z[-1]
             z += T.alloc(b[:index*self.module_dim], index*self.module_dim)
             z = T.tanh(z)
-            state_now = T.set_subtensor(state_now[:, :index*self.module_dim], z)
+            state_now = T.set_subtensor(state_now[:, :index * self.module_dim],
+                                        z)
 
             return state_now
 

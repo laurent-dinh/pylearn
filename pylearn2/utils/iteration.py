@@ -771,6 +771,7 @@ class FiniteDatasetIterator(object):
                                    for s in source)
 
         self._source = source
+        self._space = sub_spaces
 
         if convert is None:
             self._convert = [None for s in source]
@@ -798,8 +799,6 @@ class FiniteDatasetIterator(object):
                 if fn is None:
 
                     def fn(batch, dspace=dspace, sp=sp):
-                        if isinstance(dspace, SequenceDataSpace):
-                            batch = np.transpose(batch, (1, 0, 2))
                         try:
                               return dspace.np_format_as(batch, sp)
                         except ValueError as e:
