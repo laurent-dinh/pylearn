@@ -37,6 +37,7 @@ from pylearn2.datasets.dataset import Dataset
 from pylearn2.datasets import control
 from pylearn2.space import CompositeSpace, Conv2DSpace, VectorSpace, IndexSpace
 from pylearn2.utils import safe_zip
+from pylearn2.utils.exc import reraise_as
 from pylearn2.utils.rng import make_np_rng
 from theano import config
 
@@ -172,6 +173,7 @@ class DenseDesignMatrix(Dataset):
                  max_labels=None, X_labels=None, y_labels=None):
         self.X = X
         self.y = y
+        self.view_converter = view_converter
         self.X_labels = X_labels
         self.y_labels = y_labels
 
@@ -183,16 +185,7 @@ class DenseDesignMatrix(Dataset):
             assert y_labels is None
             self.y_labels = max_labels
 
-        if X_labels is not None:
-            assert X is not None
-            assert view_converter is None
-            assert X.ndim <= 2
-            assert np.all(X < X_labels)
-
-        if y_labels is not None:
-            assert y is not None
-            assert y.ndim <= 2
-            assert np.all(y < y_labels)
+        self._check_labels()
 
         if topo_view is not None:
             assert view_converter is None
@@ -201,7 +194,6 @@ class DenseDesignMatrix(Dataset):
             assert X is not None, ("DenseDesignMatrix needs to be provided "
                                    "with either topo_view, or X")
             if view_converter is not None:
-                self.view_converter = view_converter
 
                 # Get the topo_space (usually Conv2DSpace) from the
                 # view_converter
@@ -258,6 +250,19 @@ class DenseDesignMatrix(Dataset):
         if preprocessor:
             preprocessor.apply(self, can_fit=fit_preprocessor)
         self.preprocessor = preprocessor
+
+    def _check_labels(self):
+        """Sanity checks for X_labels and y_labels."""
+        if self.X_labels is not None:
+            assert self.X is not None
+            assert self.view_converter is None
+            assert self.X.ndim <= 2
+            assert np.all(self.X < self.X_labels)
+
+        if self.y_labels is not None:
+            assert self.y is not None
+            assert self.y.ndim <= 2
+            assert np.all(self.y < self.y_labels)
 
     @functools.wraps(Dataset.iterator)
     def iterator(self, mode=None, batch_size=None, num_batches=None,
@@ -557,20 +562,23 @@ class DenseDesignMatrix(Dataset):
         if train_size != 0:
             size = train_size
         elif train_prop != 0:
-            size = np.round(self.num_examples * train_prop)
+            size = np.round(self.get_num_examples() * train_prop)
         else:
             raise ValueError("Initialize either split ratio and split size to "
                              "non-zero value.")
-        if size < self.num_examples-size:
-            dataset_iter = self.iterator(mode=_mode,
-                                         batch_size=(self.num_examples - size))
+        if size < self.get_num_examples() - size:
+            dataset_iter = self.iterator(
+                mode=_mode,
+                batch_size=(self.get_num_examples() - size))
             valid = dataset_iter.next()
-            train = dataset_iter.next()[:self.num_examples-valid.shape[0]]
+            train = dataset_iter.next()[:(self.get_num_examples()
+                                          - valid.shape[0])]
         else:
             dataset_iter = self.iterator(mode=_mode,
                                          batch_size=size)
             train = dataset_iter.next()
-            valid = dataset_iter.next()[:self.num_examples-train.shape[0]]
+            valid = dataset_iter.next()[:(self.get_num_examples()
+                                          - train.shape[0])]
         return (train, valid)
 
     def split_dataset_nfolds(self, nfolds=0):
@@ -882,7 +890,13 @@ class DenseDesignMatrix(Dataset):
 
             WRITEME
         """
-        return self.X.shape[0]
+
+        warnings.warn("num_examples() is being deprecated, and will be "
+                      "removed around November 7th, 2014. `get_num_examples` "
+                      "should be used instead.",
+                      stacklevel=2)
+
+        return self.get_num_examples()
 
     def get_batch_design(self, batch_size, include_labels=False):
         """
@@ -901,9 +915,9 @@ class DenseDesignMatrix(Dataset):
             idx = self.rng.randint(self.X.shape[0] - batch_size + 1)
         except ValueError:
             if batch_size > self.X.shape[0]:
-                raise ValueError("Requested %d examples from a dataset "
-                                 "containing only %d." %
-                                 (batch_size, self.X.shape[0]))
+                reraise_as(ValueError("Requested %d examples from a dataset "
+                                      "containing only %d." %
+                                      (batch_size, self.X.shape[0])))
             raise
         rx = self.X[idx:idx + batch_size, :]
         if include_labels:
@@ -939,6 +953,10 @@ class DenseDesignMatrix(Dataset):
             return rval, labels
 
         return rval
+
+    @functools.wraps(Dataset.get_num_examples)
+    def get_num_examples(self):
+        return self.X.shape[0]
 
     def view_shape(self):
         """
@@ -1292,7 +1310,7 @@ class DenseDesignMatrixPyTables(DenseDesignMatrix):
         y = h5file.createCArray(gcolumns,
                                 'y',
                                 atom=atom,
-                                shape=((stop - start, 10)),
+                                shape=((stop - start, data.y.shape[1])),
                                 title="Data targets",
                                 filters=self.filters)
         x[:] = data.X[start:stop]
@@ -1476,15 +1494,24 @@ class DefaultViewConverter(object):
 
 def from_dataset(dataset, num_examples):
     """
-    .. todo::
+    Constructs a random subset of a DenseDesignMatrix
 
-        WRITEME
+    Parameters
+    ----------
+    dataset : DenseDesignMatrix
+    num_examples : int
+
+    Returns
+    -------
+    sub_dataset : DenseDesignMatrix
+        A new dataset containing `num_examples` examples randomly
+        drawn (without replacement) from `dataset`
     """
     try:
 
         V, y = dataset.get_batch_topo(num_examples, True)
 
-    except:
+    except TypeError:
 
         # This patches a case where control.get_load_data() is false so
         # dataset.X is None This logic should be removed whenever we implement
@@ -1499,7 +1526,7 @@ def from_dataset(dataset, num_examples):
                                      view_converter=dataset.view_converter)
         raise
 
-    rval = DenseDesignMatrix(topo_view=V, y=y)
+    rval = DenseDesignMatrix(topo_view=V, y=y, y_labels=dataset.y_labels)
     rval.adjust_for_viewer = dataset.adjust_for_viewer
 
     return rval

@@ -110,7 +110,11 @@ def is_numeric_batch(batch):
     (e.g. () for empty CompositeSpaces, None for NullSpaces).
     """
     def is_numeric(batch):
-        return isinstance(batch, np.ndarray) or scipy.sparse.issparse(batch)
+        # Uses the 'CudaNdarray' string to avoid importing
+        # theano.sandbox.cuda when it is not available
+        return (isinstance(batch, np.ndarray) or
+                scipy.sparse.issparse(batch) or
+                str(type(batch)) == "<type 'CudaNdarray'>")
 
     return _is_batch_all(batch, is_numeric)
 
@@ -584,7 +588,7 @@ class Space(object):
             Necessary because it can be impossible to tell from the
             batch whether it should be treated as a numeric of symbolic
             batch, for example when the batch is the empty tuple (),
-			or NullSpace batch None.
+            or NullSpace batch None.
 
         batch : a theano variable, numpy ndarray, scipy.sparse matrix \
                 or a nested tuple thereof

@@ -18,6 +18,8 @@ cuda = None
 import numpy as np
 
 from functools import partial
+
+from pylearn2.utils.exc import reraise_as
 WRAPPER_ASSIGNMENTS = ('__module__', '__name__')
 WRAPPER_CONCATENATIONS = ('__doc__',)
 WRAPPER_UPDATES = ('__dict__',)
@@ -47,7 +49,7 @@ def make_name(variable, anon="anonymous_variable"):
     return anon
 
 
-def sharedX(value, name=None, borrow=False):
+def sharedX(value, name=None, borrow=False, dtype=None):
     """
     Transform value into a shared variable of type floatX
 
@@ -56,13 +58,17 @@ def sharedX(value, name=None, borrow=False):
     value : WRITEME
     name : WRITEME
     borrow : WRITEME
+    dtype : str, optional
+        data type. Default value is theano.config.floatX
 
     Returns
     -------
     WRITEME
     """
 
-    return theano.shared(theano._asarray(value, dtype=theano.config.floatX),
+    if dtype is None:
+        dtype = theano.config.floatX
+    return theano.shared(theano._asarray(value, dtype=dtype),
                          name=name,
                          borrow=borrow)
 
@@ -534,9 +540,9 @@ def update_wrapper(wrapper,
                 try:
                     index = split_stripped.index(replace_before.strip())
                 except ValueError:
-                    raise ValueError('no line equal to "%s" in wrapped '
-                                     'function\'s attribute %s' %
-                                     (replace_before, attr))
+                    reraise_as(ValueError('no line equal to "%s" in wrapped '
+                                          'function\'s attribute %s' %
+                                          (replace_before, attr)))
                 wrapped_val = '\n' + '\n'.join(split[index:])
             else:
                 wrapped_val = getattr(wrapped, attr)

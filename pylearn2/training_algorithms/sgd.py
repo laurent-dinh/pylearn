@@ -33,6 +33,7 @@ from pylearn2.utils import safe_zip
 from pylearn2.utils import serial
 from pylearn2.utils import sharedX
 from pylearn2.utils.data_specs import DataSpecsMapping
+from pylearn2.utils.exc import reraise_as
 from pylearn2.utils.timing import log_timing
 from pylearn2.utils.rng import make_np_rng
 
@@ -233,9 +234,32 @@ class SGD(TrainingAlgorithm):
         self.monitor._sanity_check()
 
         # test if force batch size and batch size
-        if getattr(model, "force_batch_size", False) and \
-           any(dataset.get_design_matrix().shape[0] % self.batch_size != 0 for
-               dataset in self.monitoring_dataset.values()) and \
+        has_force_batch_size = getattr(model, "force_batch_size", False)
+        train_dataset_is_uneven = \
+            dataset.get_num_examples() % self.batch_size != 0
+
+        has_monitoring_datasets = \
+            self.monitoring_dataset is not None and \
+            self.monitoring_dataset.values() > 0
+
+        if has_monitoring_datasets:
+            monitoring_datasets_are_uneven = \
+                any(d.get_num_examples() % self.batch_size
+                    != 0 for d in self.monitoring_dataset.values())
+        else:
+            monitoring_datasets_are_uneven = False  # or True it doesn't matter
+
+        if has_force_batch_size and train_dataset_is_uneven and \
+           not has_uniform_batch_size(self.train_iteration_mode):
+
+            raise ValueError("Dataset size is not a multiple of batch size."
+                             "You should set train_iteration_mode (and "
+                             "maybe monitor_iteration_mode) to "
+                             "even_sequential, even_shuffled_sequential or "
+                             "even_batchwise_shuffled_sequential")
+
+        if has_force_batch_size and has_monitoring_datasets and \
+           monitoring_datasets_are_uneven and \
            not has_uniform_batch_size(self.monitor_iteration_mode):
 
             raise ValueError("Dataset size is not a multiple of batch size."
@@ -575,7 +599,7 @@ class MonitorBasedLRAdjuster(TrainExtension):
                     'specify a valid monitoring channel by using either ' + \
                     'dataset_name or channel_name in the ' + \
                     'MonitorBasedLRAdjuster constructor. ' + err_input
-            raise ValueError(err_message)
+            reraise_as(ValueError(err_message))
 
         if len(v) < 1:
             if monitor.dataset is None:
