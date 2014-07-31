@@ -490,8 +490,16 @@ class MLP(Layer):
     def set_input_space(self, space):
 
         if hasattr(self, "mlp"):
-            self.rng = self.mlp.rng
+            if hasattr(self.mlp, 'rng'):
+                self.rng = self.mlp.rng
+            else:
+                self.setup_rng()
             self.batch_size = self.mlp.batch_size
+        else:
+            if not hasattr(self, 'rng'):
+                self.setup_rng()
+
+        assert hasattr(self, 'rng')
 
         self.input_space = space
 
