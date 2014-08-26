@@ -16,11 +16,14 @@ __license__ = "3-clause BSD"
 __maintainer__ = "LISA Lab"
 __email__ = "pylearn-dev@googlegroups"
 
-from pylearn2.utils import serial
+import gc
 import numpy as np
 import sys
+
+from pylearn2.utils import serial
 from theano.printing import _TagGenerator
 from pylearn2.utils.string_utils import number_aware_alphabetical_key
+from pylearn2.utils import contains_nan, contains_inf
 import argparse
 
 channels = {}
@@ -83,7 +86,7 @@ def main():
     for i, arg in enumerate(model_paths):
         try:
             model = serial.load(arg)
-        except:
+        except Exception:
             if arg.endswith('.yaml'):
                 print >> sys.stderr, arg + " is a yaml config file," + \
                 "you need to load a trained model."
@@ -98,6 +101,8 @@ def main():
 
         for channel in this_model_channels:
             channels[channel+postfix] = this_model_channels[channel]
+        del model
+        gc.collect()
 
 
     while True:
@@ -233,10 +238,10 @@ def main():
 
             y = np.asarray(channel.val_record)
 
-            if np.any(np.isnan(y)):
+            if contains_nan(y):
                 print channel_name + ' contains NaNs'
 
-            if np.any(np.isinf(y)):
+            if contains_inf(y):
                 print channel_name + 'contains infinite values'
 
             if x_axis == 'example':

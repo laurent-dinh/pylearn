@@ -2,13 +2,17 @@ from itertools import product
 
 import numpy as np
 import theano
-from theano import tensor
+from theano import tensor, config
 
-from pylearn2.models.mlp import (MLP, Linear, Softmax, Sigmoid,
+from pylearn2.datasets.vector_spaces_dataset import VectorSpacesDataset
+from pylearn2.termination_criteria import EpochCounter
+from pylearn2.training_algorithms.sgd import SGD
+from pylearn2.train import Train
+from pylearn2.models.mlp import (FlattenerLayer, MLP, Linear, Softmax, Sigmoid,
                                  exhaustive_dropout_average,
                                  sampled_dropout_average, CompositeLayer)
-from pylearn2.space import VectorSpace, CompositeSpace
-from pylearn2.utils import is_iterable
+from pylearn2.space import VectorSpace, CompositeSpace, Conv2DSpace
+from pylearn2.utils import is_iterable, sharedX
 
 
 class IdentityLayer(Linear):
@@ -93,8 +97,10 @@ def test_dropout_input_mask_value():
     mlp.layers[0].set_biases(np.arange(1, 3, dtype=mlp.get_weights().dtype))
     mlp.layers[0].dropout_input_mask_value = -np.inf
     inp = theano.tensor.matrix()
+    mode = theano.compile.mode.get_default_mode()
+    mode.check_isfinite = False
     f = theano.function([inp], mlp.masked_fprop(inp, 1, default_input_scale=1),
-                        allow_input_downcast=True)
+                        allow_input_downcast=True, mode=mode)
     np.testing.assert_equal(f([[4., 3.]]), [[4., -np.inf]])
 
 
@@ -159,6 +165,21 @@ def test_sigmoid_detection_cost():
     y_hat = model.fprop(X)
     model.cost(y, y_hat).eval()
 
+def test_weight_decay_0():
+    nested_mlp = MLP(layer_name='nested_mlp', layers=[IdentityLayer(2, 'h0', irange=0)])
+    mlp = MLP(nvis=2, layers=[nested_mlp])
+    weight_decay = mlp.get_weight_decay([0])
+    assert isinstance(weight_decay, theano.tensor.TensorConstant)
+    assert weight_decay.dtype == theano.config.floatX
+
+    weight_decay = mlp.get_weight_decay([[0]])
+    assert isinstance(weight_decay, theano.tensor.TensorConstant)
+    assert weight_decay.dtype == theano.config.floatX
+
+    nested_mlp.add_layers([IdentityLayer(2, 'h1', irange=0)])
+    weight_decay = mlp.get_weight_decay([[0, 0.1]])
+    assert weight_decay.dtype == theano.config.floatX
+
 if __name__ == "__main__":
     test_masked_fprop()
     test_sampled_dropout_average()
@@ -167,6 +188,7 @@ if __name__ == "__main__":
     test_sigmoid_layer_misclass_reporting()
     test_batchwise_dropout()
     test_sigmoid_detection_cost()
+    test_weight_decay_0()
 
 
 def test_composite_layer():
@@ -205,7 +227,9 @@ def test_composite_layer():
         input_space = CompositeSpace([VectorSpace(dim=2),
                                       VectorSpace(dim=2),
                                       VectorSpace(dim=2)])
-        mlp = MLP(input_space=input_space, layers=[composite_layer])
+        input_source = ('features0', 'features1', 'features2')
+        mlp = MLP(input_space=input_space, input_source=input_source,
+                  layers=[composite_layer])
         for i in range(3):
             composite_layer.layers[i].set_weights(
                 np.eye(2, dtype=theano.config.floatX)
@@ -245,3 +269,120 @@ def test_composite_layer():
                                 in composite_layer.layers])
             )
             assert np.allclose(f(), g())
+
+
+def test_multiple_inputs():
+    """
+    Create a VectorSpacesDataset with two inputs (features0 and features1)
+    and train an MLP which takes both inputs for 1 epoch.
+    """
+    mlp = MLP(
+        layers=[
+            FlattenerLayer(
+                CompositeLayer(
+                    'composite',
+                    [Linear(10, 'h0', 0.1),
+                     Linear(10, 'h1', 0.1)],
+                    {
+                        0: [1],
+                        1: [0]
+                    }
+                )
+            ),
+            Softmax(5, 'softmax', 0.1)
+        ],
+        input_space=CompositeSpace([VectorSpace(15), VectorSpace(20)]),
+        input_source=('features0', 'features1')
+    )
+    dataset = VectorSpacesDataset(
+        (np.random.rand(20, 20).astype(theano.config.floatX),
+         np.random.rand(20, 15).astype(theano.config.floatX),
+         np.random.rand(20, 5).astype(theano.config.floatX)),
+        (CompositeSpace([
+            VectorSpace(20),
+            VectorSpace(15),
+            VectorSpace(5)]),
+         ('features1', 'features0', 'targets'))
+    )
+    train = Train(dataset, mlp, SGD(0.1, batch_size=5))
+    train.algorithm.termination_criterion = EpochCounter(1)
+    train.main_loop()
+
+
+def test_nested_mlp():
+    """
+    Constructs a nested MLP and tries to fprop through it
+    """
+    inner_mlp = MLP(layers=[Linear(10, 'h0', 0.1), Linear(10, 'h1', 0.1)],
+                    layer_name='inner_mlp')
+    outer_mlp = MLP(layers=[CompositeLayer(layer_name='composite',
+                                           layers=[inner_mlp,
+                                                   Linear(10, 'h2', 0.1)])],
+                    nvis=10)
+    X = outer_mlp.get_input_space().make_theano_batch()
+    f = theano.function([X], outer_mlp.fprop(X))
+    f(np.random.rand(5, 10).astype(theano.config.floatX))
+
+
+def test_softmax_binary_targets():
+    """
+    Constructs softmax layers with binary target and with vector targets
+    to check that they give the same cost.
+    """
+    num_classes = 10
+    batch_size = 20
+    mlp_bin = MLP(
+        layers=[Softmax(num_classes, 's1', irange=0.1, binary_target_dim=1)],
+        nvis=100
+    )
+    mlp_vec = MLP(
+        layers=[Softmax(num_classes, 's1', irange=0.1)],
+        nvis=100
+    )
+
+    X = mlp_bin.get_input_space().make_theano_batch()
+    y_bin = mlp_bin.get_target_space().make_theano_batch()
+    y_vec = mlp_vec.get_target_space().make_theano_batch()
+
+    y_hat_bin = mlp_bin.fprop(X)
+    y_hat_vec = mlp_vec.fprop(X)
+    cost_bin = theano.function([X, y_bin], mlp_bin.cost(y_bin, y_hat_bin), 
+                               allow_input_downcast=True)
+    cost_vec = theano.function([X, y_vec], mlp_vec.cost(y_vec, y_hat_vec),
+                               allow_input_downcast=True)
+
+    X_data = np.random.random(size=(batch_size, 100))
+    y_bin_data = np.random.randint(low=0, high=10, size=(batch_size, 1))
+    y_vec_data = np.zeros((batch_size, num_classes))
+    y_vec_data[np.arange(batch_size),y_bin_data.flatten()] = 1
+    np.testing.assert_allclose(cost_bin(X_data, y_bin_data), cost_vec(X_data, y_vec_data))
+
+def test_set_get_weights_Softmax():
+    """
+    Tests setting and getting weights for Softmax layer.
+    """
+    num_classes = 2
+    dim = 3
+    conv_dim = [3, 4, 5]
+
+    # VectorSpace input space
+    layer = Softmax(num_classes, 's', irange=.1)
+    softmax_mlp = MLP(layers=[layer],
+            input_space=VectorSpace(dim=dim))
+    vec_weights = np.random.randn(dim, num_classes).astype(config.floatX)
+    layer.set_weights(vec_weights)
+    assert np.allclose(layer.W.get_value(), vec_weights)
+    layer.W.set_value(vec_weights)
+    assert np.allclose(layer.get_weights(), vec_weights)
+
+    # Conv2DSpace input space
+    layer = Softmax(num_classes, 's', irange=.1)
+    softmax_mlp = MLP(layers=[layer],
+            input_space=Conv2DSpace(shape=(conv_dim[0], conv_dim[1]), 
+                                    num_channels=conv_dim[2]))
+    conv_weights = np.random.randn(conv_dim[0], conv_dim[1], conv_dim[2], 
+                                   num_classes).astype(config.floatX)
+    layer.set_weights(conv_weights.reshape(np.prod(conv_dim), num_classes))
+    assert np.allclose(layer.W.get_value(), conv_weights.reshape(np.prod(conv_dim), num_classes))
+    layer.W.set_value(conv_weights.reshape(np.prod(conv_dim), num_classes))
+    assert np.allclose(layer.get_weights_topo(), np.transpose(conv_weights, axes=(3, 0, 1, 2)))

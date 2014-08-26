@@ -8,7 +8,9 @@ try:
     import scipy.sparse
 except ImportError:
     warnings.warn("Could not import scipy")
-from itertools import izip
+from theano.compat.six.moves import zip as izip
+
+from pylearn2.utils.exc import reraise_as
 
 
 def pooling_matrix(groups, per_group, strides=None, dtype=None, sparse=None):
@@ -53,7 +55,8 @@ def pooling_matrix(groups, per_group, strides=None, dtype=None, sparse=None):
             try:
                 shape = (int(shape),)
             except TypeError:
-                raise TypeError("%s must be int or int tuple" % param_name)
+                reraise_as(TypeError("%s must be int or int tuple"
+                                     % param_name))
         return shape
 
     groups = _validate_shape(groups, 'groups')

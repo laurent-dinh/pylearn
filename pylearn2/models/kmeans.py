@@ -8,11 +8,12 @@ from pylearn2.space import VectorSpace
 from pylearn2.utils import sharedX
 from pylearn2.utils.mem import improve_memory_error_message
 from pylearn2.utils import wraps
+from pylearn2.utils import contains_nan
 import warnings
 
 try:
     import milk
-except:
+except ImportError:
     milk = None
     warnings.warn(""" Install milk ( http://packages.python.org/milk/ )
                     It has a better k-means implementation. Falling back to
@@ -117,7 +118,7 @@ class KMeans(Block, Model):
 
                 # print 'iter:',iter,' conv crit:',abs(mmd-prev_mmd)
                 # if numpy.sum(numpy.isnan(mu)) > 0:
-                if numpy.any(numpy.isnan(mu)):
+                if contains_nan(mu):
                     logger.info('nan found')
                     return X
 
@@ -179,7 +180,7 @@ class KMeans(Block, Model):
                         i += 1
                     else:
                         mu[i, :] = numpy.mean(X[b, :], axis=0)
-                        if numpy.any(numpy.isnan(mu)):
+                        if contains_nan(mu):
                             logger.info('nan found at {0}'.format(i))
                             return X
                         i += 1

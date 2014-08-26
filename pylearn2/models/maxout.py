@@ -29,9 +29,9 @@ import functools
 import logging
 import numpy as np
 import warnings
-from itertools import izip
 
 from theano.compat.python2x import OrderedDict
+from theano.compat.six.moves import zip as izip
 from theano.sandbox import cuda
 from theano import tensor as T
 
@@ -338,7 +338,7 @@ class Maxout(Layer):
             coeff = float(coeff)
         assert isinstance(coeff, float) or hasattr(coeff, 'dtype')
         W, = self.transformer.get_params()
-        return coeff * T.abs(W).sum()
+        return coeff * T.abs_(W).sum()
 
     @functools.wraps(Model.get_weights)
     def get_weights(self):
@@ -793,8 +793,7 @@ class MaxoutConvC01B(Layer):
 
         dummy_p = max_pool_c01b(c01b=dummy_detector,
                                 pool_shape=self.pool_shape,
-                                pool_stride=self.pool_stride,
-                                image_shape=self.detector_space.shape)
+                                pool_stride=self.pool_stride)
         dummy_p = dummy_p.eval()
         self.output_space = Conv2DSpace(shape=[dummy_p.shape[1],
                                                dummy_p.shape[2]],
@@ -939,8 +938,7 @@ class MaxoutConvC01B(Layer):
                 z = self.detector_normalization(z)
 
             p = max_pool_c01b(c01b=z, pool_shape=self.pool_shape,
-                              pool_stride=self.pool_stride,
-                              image_shape=self.detector_space.shape)
+                              pool_stride=self.pool_stride)
         else:
 
             if self.detector_normalization is not None:
@@ -949,8 +947,7 @@ class MaxoutConvC01B(Layer):
                                           "never exists as a stage of "
                                           "processing in this implementation.")
             z = max_pool_c01b(c01b=z, pool_shape=self.pool_shape,
-                              pool_stride=self.pool_stride,
-                              image_shape=self.detector_space.shape)
+                              pool_stride=self.pool_stride)
             if self.num_pieces != 1:
                 s = None
                 for i in xrange(self.num_pieces):
@@ -1051,7 +1048,7 @@ class MaxoutConvC01B(Layer):
 
         if (state is not None) or (state_below is not None):
             if state is None:
-                state = self.fprop(state)
+                state = self.fprop(state_below)
 
             P = state
 
@@ -1381,7 +1378,8 @@ class MaxoutLocalC01B(Layer):
         self.b.name = 'b'
 
         logger.info('Input shape: {0}'.format(self.input_space.shape))
-        logger.info('Detector space: {0}'.format(self.detector_space.shape))
+        logger.info(self.layer_name +
+                    ' detector space: {0}'.format(self.detector_space.shape))
 
         assert self.detector_space.num_channels >= 16
 
@@ -1395,8 +1393,7 @@ class MaxoutLocalC01B(Layer):
 
             dummy_p = max_pool_c01b(c01b=dummy_detector,
                                     pool_shape=self.pool_shape,
-                                    pool_stride=self.pool_stride,
-                                    image_shape=self.detector_space.shape)
+                                    pool_stride=self.pool_stride)
             dummy_p = dummy_p.eval()
             self.output_space = Conv2DSpace(shape=[dummy_p.shape[1],
                                                    dummy_p.shape[2]],
@@ -1569,8 +1566,7 @@ class MaxoutLocalC01B(Layer):
             else:
                 p = max_pool_c01b(c01b=z,
                                   pool_shape=self.pool_shape,
-                                  pool_stride=self.pool_stride,
-                                  image_shape=self.detector_space.shape)
+                                  pool_stride=self.pool_stride)
         else:
 
             if self.detector_normalization is not None:
@@ -1582,8 +1578,7 @@ class MaxoutLocalC01B(Layer):
             if self.pool_shape is not None or np.prod(self.pool_shape) > 1:
                 z = max_pool_c01b(c01b=z,
                                   pool_shape=self.pool_shape,
-                                  pool_stride=self.pool_stride,
-                                  image_shape=self.detector_space.shape)
+                                  pool_stride=self.pool_stride)
             if self.num_pieces != 1:
                 s = None
                 for i in xrange(self.num_pieces):

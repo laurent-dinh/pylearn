@@ -20,6 +20,7 @@ floatX = theano.config.floatX
 logger = logging.getLogger(__name__)
 from pylearn2.space import CompositeSpace, VectorSpace
 from pylearn2.utils import safe_zip
+from pylearn2.utils.exc import reraise_as
 from pylearn2.utils.iteration import (
     FiniteDatasetIterator,
     resolve_iterator_class
@@ -95,6 +96,10 @@ class SparseDataset(Dataset):
     def get_batch_topo(self, batch_size):
         """Method inherited from Dataset"""
         raise NotImplementedError('Not implemented for sparse dataset')
+
+    @functools.wraps(Dataset.get_num_examples)
+    def get_num_examples(self):
+        return self.X.shape[0]
 
     @wraps(Dataset.iterator)
     def iterator(self, mode=None, batch_size=None, num_batches=None,
@@ -178,7 +183,7 @@ class SparseDataset(Dataset):
         try:
             mini_batch = self.X[indx]
         except IndexError, e:
-            raise ValueError("Index out of range"+str(e))
+            reraise_as(ValueError("Index out of range"+str(e)))
             # the ind of minibatch goes beyond the boundary
         return mini_batch
 

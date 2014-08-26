@@ -6,18 +6,20 @@
 import logging
 import warnings
 
-from .general import is_iterable
+from .general import is_iterable, contains_nan, contains_inf, isfinite
 import theano
+from theano.compat.six.moves import zip as izip
 # Delay import of pylearn2.config.yaml_parse and pylearn2.datasets.control
 # to avoid circular imports
 yaml_parse = None
 control = None
-from itertools import izip
 cuda = None
 
 import numpy as np
 
 from functools import partial
+
+from pylearn2.utils.exc import reraise_as
 WRAPPER_ASSIGNMENTS = ('__module__', '__name__')
 WRAPPER_CONCATENATIONS = ('__doc__',)
 WRAPPER_UPDATES = ('__dict__',)
@@ -47,7 +49,7 @@ def make_name(variable, anon="anonymous_variable"):
     return anon
 
 
-def sharedX(value, name=None, borrow=False):
+def sharedX(value, name=None, borrow=False, dtype=None):
     """
     Transform value into a shared variable of type floatX
 
@@ -56,13 +58,17 @@ def sharedX(value, name=None, borrow=False):
     value : WRITEME
     name : WRITEME
     borrow : WRITEME
+    dtype : str, optional
+        data type. Default value is theano.config.floatX
 
     Returns
     -------
     WRITEME
     """
 
-    return theano.shared(theano._asarray(value, dtype=theano.config.floatX),
+    if dtype is None:
+        dtype = theano.config.floatX
+    return theano.shared(theano._asarray(value, dtype=dtype),
                          name=name,
                          borrow=borrow)
 
@@ -534,9 +540,9 @@ def update_wrapper(wrapper,
                 try:
                     index = split_stripped.index(replace_before.strip())
                 except ValueError:
-                    raise ValueError('no line equal to "%s" in wrapped '
-                                     'function\'s attribute %s' %
-                                     (replace_before, attr))
+                    reraise_as(ValueError('no line equal to "%s" in wrapped '
+                                          'function\'s attribute %s' %
+                                          (replace_before, attr)))
                 wrapped_val = '\n' + '\n'.join(split[index:])
             else:
                 wrapped_val = getattr(wrapped, attr)

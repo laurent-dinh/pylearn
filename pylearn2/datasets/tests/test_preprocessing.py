@@ -8,6 +8,7 @@ from theano import config
 import theano
 
 from pylearn2.utils import as_floatX
+from pylearn2.utils import isfinite
 from pylearn2.datasets import dense_design_matrix
 from pylearn2.datasets.dense_design_matrix import DenseDesignMatrix
 from pylearn2.datasets.preprocessing import (GlobalContrastNormalization,
@@ -27,10 +28,10 @@ class testGlobalContrastNormalization:
 
         dataset = DenseDesignMatrix(X=as_floatX(np.zeros((1, 1))))
 
-        #the settings of subtract_mean and use_norm are not relevant to
-        #the test
-        #std_bias = 0.0 is the only value for which there should be a risk
-        #of failure occurring
+        # the settings of subtract_mean and use_norm are not relevant to
+        # the test
+        # std_bias = 0.0 is the only value for which there should be a risk
+        # of failure occurring
         preprocessor = GlobalContrastNormalization(subtract_mean=True,
                                                    sqrt_bias=0.0,
                                                    use_std=True)
@@ -39,8 +40,7 @@ class testGlobalContrastNormalization:
 
         result = dataset.get_design_matrix()
 
-        assert not np.any(np.isnan(result))
-        assert not np.any(np.isinf(result))
+        assert isfinite(result)
 
     def test_unit_norm(self):
         """ Test that using std_bias = 0.0 and use_norm = True
@@ -57,8 +57,8 @@ class testGlobalContrastNormalization:
 
         dataset = DenseDesignMatrix(X=X)
 
-        #the setting of subtract_mean is not relevant to the test
-        #the test only applies when std_bias = 0.0 and use_std = False
+        # the setting of subtract_mean is not relevant to the test
+        # the test only applies when std_bias = 0.0 and use_std = False
         preprocessor = GlobalContrastNormalization(subtract_mean=False,
                                                    sqrt_bias=0.0,
                                                    use_std=False)
@@ -127,8 +127,7 @@ class testLeCunLCN:
         dataset.apply_preprocessor(preprocessor)
         result = dataset.get_design_matrix()
 
-        assert not np.any(np.isnan(result))
-        assert not np.any(np.isinf(result))
+        assert isfinite(result)
 
     def test_zero_image(self):
         """
@@ -146,8 +145,7 @@ class testLeCunLCN:
         dataset.apply_preprocessor(preprocessor)
         result = dataset.get_design_matrix()
 
-        assert not np.any(np.isnan(result))
-        assert not np.any(np.isinf(result))
+        assert isfinite(result)
 
     def test_channel(self):
         """
@@ -166,8 +164,7 @@ class testLeCunLCN:
         dataset.apply_preprocessor(preprocessor)
         result = dataset.get_design_matrix()
 
-        assert not np.any(np.isnan(result))
-        assert not np.any(np.isinf(result))
+        assert isfinite(result)
 
 
 def test_rgb_yuv():
@@ -189,8 +186,7 @@ def test_rgb_yuv():
     dataset.apply_preprocessor(preprocessor)
     result = dataset.get_design_matrix()
 
-    assert not np.any(np.isnan(result))
-    assert not np.any(np.isinf(result))
+    assert isfinite(result)
 
 
 def test_zca():
@@ -212,6 +208,7 @@ def test_zca():
     assert preprocessor.P_.shape == (X.shape[1], X.shape[1])
     assert not is_identity(preprocessor.P_)
     assert is_identity(np.dot(preprocessor.P_, preprocessor.inv_P_))
+
 
 def test_zca_dtypes():
     """

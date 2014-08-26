@@ -26,7 +26,9 @@ from pylearn2.space import Conv2DSpace, VectorSpace
 from pylearn2.expr.preprocessing import global_contrast_normalize
 from pylearn2.utils.insert_along_axis import insert_columns
 from pylearn2.utils import sharedX
+from pylearn2.utils.exc import reraise_as
 from pylearn2.utils.rng import make_np_rng
+from pylearn2.utils import contains_nan
 
 
 log = logging.getLogger(__name__)
@@ -341,9 +343,9 @@ class ReassembleGridPatches(Preprocessor):
             try:
                 patch = patches[i, :]
             except IndexError:
-                raise IndexError('Gave index of ' + str(i) +
-                                 ', : into thing of shape ' +
-                                 str(patches.shape))
+                reraise_as(IndexError('Gave index of ' + str(i) +
+                                      ', : into thing of shape ' +
+                                      str(patches.shape)))
             reassembled[args] = patch
             i += 1
             j = 0
@@ -1353,7 +1355,7 @@ class ZCA(Preprocessor):
         """
 
         assert X.dtype in ['float32', 'float64']
-        assert not numpy.any(numpy.isnan(X))
+        assert not contains_nan(X)
         assert len(X.shape) == 2
         n_samples = X.shape[0]
         if self.copy:
@@ -1376,8 +1378,8 @@ class ZCA(Preprocessor):
         eigs, eigv = linalg.eigh(covariance)
         t2 = time.time()
         log.info("eigh() took {0} seconds".format(t2 - t1))
-        assert not numpy.any(numpy.isnan(eigs))
-        assert not numpy.any(numpy.isnan(eigv))
+        assert not contains_nan(eigs)
+        assert not contains_nan(eigv)
         assert eigs.min() > 0
         if self.n_components:
             eigs = eigs[:self.n_components]
@@ -1397,7 +1399,7 @@ class ZCA(Preprocessor):
             self.P_ = numpy.dot(eigv * (1.0 / sqrt_eigs), eigv.T)
 
         t2 = time.time()
-        assert not numpy.any(numpy.isnan(self.P_))
+        assert not contains_nan(self.P_)
         self.has_fit_ = True
 
         if self.store_inverse:
@@ -1683,8 +1685,8 @@ class CentralWindow(Preprocessor):
         try:
             axes = dataset.view_converter.axes
         except AttributeError:
-            raise NotImplementedError("I don't know how to tell what the axes "
-                                      "of this kind of dataset are.")
+            reraise_as(NotImplementedError("I don't know how to tell what the axes "
+                                           "of this kind of dataset are."))
 
         needs_transpose = not axes[1:3] == (0, 1)
 
@@ -1719,7 +1721,7 @@ def lecun_lcn(input, img_shape, kernel_shape, threshold=1e-4):
     kernel_shape : WRITEME
     threshold : WRITEME
     """
-    input = input.reshape(input.shape[0], input.shape[1], input.shape[2], 1)
+    input = input.reshape((input.shape[0], input.shape[1], input.shape[2], 1))
     X = tensor.matrix(dtype=input.dtype)
     X = X.reshape((len(input), img_shape[0], img_shape[1], 1))
 

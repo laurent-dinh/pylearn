@@ -32,7 +32,11 @@ from pylearn2.utils import py_integer_types, py_float_types
 from pylearn2.utils import safe_zip
 from pylearn2.utils import serial
 from pylearn2.utils import sharedX
+from pylearn2.utils import contains_nan
+from pylearn2.utils import contains_inf
+from pylearn2.utils import isfinite
 from pylearn2.utils.data_specs import DataSpecsMapping
+from pylearn2.utils.exc import reraise_as
 from pylearn2.utils.timing import log_timing
 from pylearn2.utils.rng import make_np_rng
 
@@ -145,8 +149,9 @@ class SGD(TrainingAlgorithm):
         things like check for NaNs at every step, or record md5 digests
         of all computations performed by the update function to help
         isolate problems with nondeterminism.
-    monitoring_costs : list, optional
-        a list of Cost instances. The Monitor will also include all
+    monitoring_costs : OrderedDict, optional
+        A dictionary of Cost instances. Keys should be string containing
+        the name of the cost. The Monitor will also include all
         channels defined by these Costs, even though we don't train
         using them.
     seed : valid argument to np.random.RandomState, optional
@@ -204,6 +209,41 @@ class SGD(TrainingAlgorithm):
         self.theano_function_mode = theano_function_mode
         self.monitoring_costs = monitoring_costs
 
+    def _setup_monitor(self):
+        """
+        Set up monitor to model the objective value, learning rate,
+        momentum (if applicable), and extra channels defined by
+        the cost.
+
+        This method must be called after `learning_rule.get_updates`,
+        since it may have an effect on `learning_rule.add_channels_to_monitor`
+        (that is currently the case for `learning_rule.RMSProp`).
+        """
+        if self.monitoring_dataset is not None:
+            if (self.monitoring_batch_size is None and
+                    self.monitoring_batches is None):
+                self.monitoring_batch_size = self.batch_size
+                self.monitoring_batches = self.batches_per_iter
+            self.monitor.setup(dataset=self.monitoring_dataset,
+                               cost=self.cost,
+                               batch_size=self.monitoring_batch_size,
+                               num_batches=self.monitoring_batches,
+                               extra_costs=self.monitoring_costs,
+                               mode=self.monitor_iteration_mode)
+            dataset_name = self.monitoring_dataset.keys()[0]
+            monitoring_dataset = self.monitoring_dataset[dataset_name]
+            #TODO: have Monitor support non-data-dependent channels
+            self.monitor.add_channel(name='learning_rate',
+                                     ipt=None,
+                                     val=self.learning_rate,
+                                     data_specs=(NullSpace(), ''),
+                                     dataset=monitoring_dataset)
+
+            if self.learning_rule:
+                self.learning_rule.add_channels_to_monitor(
+                        self.monitor,
+                        monitoring_dataset)
+
     def setup(self, model, dataset):
         """
         Compiles the theano functions needed for the train method.
@@ -217,13 +257,13 @@ class SGD(TrainingAlgorithm):
             self.cost = model.get_default_cost()
 
         inf_params = [param for param in model.get_params()
-                      if np.any(np.isinf(param.get_value()))]
+                      if contains_inf(param.get_value())]
         if len(inf_params) > 0:
             raise ValueError("These params are Inf: "+str(inf_params))
-        if any([np.any(np.isnan(param.get_value()))
+        if any([contains_nan(param.get_value())
                 for param in model.get_params()]):
             nan_params = [param for param in model.get_params()
-                          if np.any(np.isnan(param.get_value()))]
+                          if contains_nan(param.get_value())]
             raise ValueError("These params are NaN: "+str(nan_params))
         self.model = model
 
@@ -233,9 +273,32 @@ class SGD(TrainingAlgorithm):
         self.monitor._sanity_check()
 
         # test if force batch size and batch size
-        if getattr(model, "force_batch_size", False) and \
-           any(dataset.get_design_matrix().shape[0] % self.batch_size != 0 for
-               dataset in self.monitoring_dataset.values()) and \
+        has_force_batch_size = getattr(model, "force_batch_size", False)
+        train_dataset_is_uneven = \
+            dataset.get_num_examples() % self.batch_size != 0
+
+        has_monitoring_datasets = \
+            self.monitoring_dataset is not None and \
+            self.monitoring_dataset.values() > 0
+
+        if has_monitoring_datasets:
+            monitoring_datasets_are_uneven = \
+                any(d.get_num_examples() % self.batch_size
+                    != 0 for d in self.monitoring_dataset.values())
+        else:
+            monitoring_datasets_are_uneven = False  # or True it doesn't matter
+
+        if has_force_batch_size and train_dataset_is_uneven and \
+           not has_uniform_batch_size(self.train_iteration_mode):
+
+            raise ValueError("Dataset size is not a multiple of batch size."
+                             "You should set train_iteration_mode (and "
+                             "maybe monitor_iteration_mode) to "
+                             "even_sequential, even_shuffled_sequential or "
+                             "even_batchwise_shuffled_sequential")
+
+        if has_force_batch_size and has_monitoring_datasets and \
+           monitoring_datasets_are_uneven and \
            not has_uniform_batch_size(self.monitor_iteration_mode):
 
             raise ValueError("Dataset size is not a multiple of batch size."
@@ -274,35 +337,7 @@ class SGD(TrainingAlgorithm):
             # Concatenate the name of all tensors in theano_args !?
             cost_value.name = 'objective'
 
-        # Set up monitor to model the objective value, learning rate,
-        # momentum (if applicable), and extra channels defined by
-        # the cost
         learning_rate = self.learning_rate
-        if self.monitoring_dataset is not None:
-            if (self.monitoring_batch_size is None and
-                    self.monitoring_batches is None):
-                self.monitoring_batch_size = self.batch_size
-                self.monitoring_batches = self.batches_per_iter
-            self.monitor.setup(dataset=self.monitoring_dataset,
-                               cost=self.cost,
-                               batch_size=self.monitoring_batch_size,
-                               num_batches=self.monitoring_batches,
-                               extra_costs=self.monitoring_costs,
-                               mode=self.monitor_iteration_mode)
-            dataset_name = self.monitoring_dataset.keys()[0]
-            monitoring_dataset = self.monitoring_dataset[dataset_name]
-            #TODO: have Monitor support non-data-dependent channels
-            self.monitor.add_channel(name='learning_rate',
-                                     ipt=None,
-                                     val=learning_rate,
-                                     data_specs=(NullSpace(), ''),
-                                     dataset=monitoring_dataset)
-
-            if self.learning_rule:
-                self.learning_rule.add_channels_to_monitor(
-                        self.monitor,
-                        monitoring_dataset)
-
         params = list(model.get_params())
         assert len(params) > 0
         for i, param in enumerate(params):
@@ -361,13 +396,22 @@ class SGD(TrainingAlgorithm):
             if update.name is None:
                 update.name = 'censor(sgd_update(' + param.name + '))'
             for update_val in get_debug_values(update):
-                if np.any(np.isinf(update_val)):
+                if contains_inf(update_val):
                     raise ValueError("debug value of %s contains infs" %
                             update.name)
-                if np.any(np.isnan(update_val)):
+                if contains_nan(update_val):
                     raise ValueError("debug value of %s contains nans" %
                             update.name)
 
+
+        # Set up monitor to model the objective value, learning rate,
+        # momentum (if applicable), and extra channels defined by
+        # the cost.
+        # We have to do that after learning_rule.get_updates has been
+        # called, since it may have an effect on
+        # learning_rule.add_channels_to_monitor (that is currently the case
+        # for AdaDelta and RMSProp).
+        self._setup_monitor()
 
         with log_timing(log, 'Compiling sgd_update'):
             self.sgd_update = function(theano_args,
@@ -391,7 +435,7 @@ class SGD(TrainingAlgorithm):
         # Make sure none of the parameters have bad values
         for param in self.params:
             value = param.get_value(borrow=True)
-            if np.any(np.isnan(value)) or np.any(np.isinf(value)):
+            if not isfinite(value):
                 raise Exception("NaN in " + param.name)
 
         self.first = False
@@ -438,7 +482,7 @@ class SGD(TrainingAlgorithm):
         # Make sure none of the parameters have bad values
         for param in self.params:
             value = param.get_value(borrow=True)
-            if np.any(np.isnan(value)) or np.any(np.isinf(value)):
+            if not isfinite(value):
                 raise Exception("NaN in " + param.name)
 
     def continue_learning(self, model):
@@ -575,7 +619,7 @@ class MonitorBasedLRAdjuster(TrainExtension):
                     'specify a valid monitoring channel by using either ' + \
                     'dataset_name or channel_name in the ' + \
                     'MonitorBasedLRAdjuster constructor. ' + err_input
-            raise ValueError(err_message)
+            reraise_as(ValueError(err_message))
 
         if len(v) < 1:
             if monitor.dataset is None:
