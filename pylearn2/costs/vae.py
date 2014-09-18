@@ -10,6 +10,7 @@ __email__ = "pylearn-dev@googlegroups"
 
 from pylearn2.costs.cost import Cost, DefaultDataSpecsMixin
 from pylearn2.utils import wraps
+from theano.compat.python2x import OrderedDict
 
 
 class VAECriterion(DefaultDataSpecsMixin, Cost):
@@ -33,6 +34,15 @@ class VAECriterion(DefaultDataSpecsMixin, Cost):
         space.validate(data)
         return -model.log_likelihood_lower_bound(data, self.num_samples).mean()
 
+    def get_monitoring_channels(self, model, data, **kwargs):
+        space, sources = self.get_data_specs(model)
+        space.validate(data)
+        kl, expectation_term = model.log_likelihood_lower_bound(data, self.num_samples, separate=True)
+        rval = OrderedDict()
+        rval["kl_divergence"] = kl.mean()
+        rval["expectation_term"] = expectation_term.mean()
+
+        return rval
 
 class ImportanceSamplingCriterion(DefaultDataSpecsMixin, Cost):
     """

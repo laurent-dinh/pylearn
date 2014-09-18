@@ -99,11 +99,12 @@ class Momentum(LearningRule):
 
     """
 
-    def __init__(self, init_momentum, nesterov_momentum=False):
+    def __init__(self, init_momentum, nesterov_momentum=False, clipping=None):
         assert init_momentum >= 0.
         assert init_momentum < 1.
         self.momentum = sharedX(init_momentum, 'momentum')
         self.nesterov_momentum = nesterov_momentum
+        self.clipping = clipping
 
     def add_channels_to_monitor(self, monitor, monitoring_dataset):
         """
@@ -142,6 +143,16 @@ class Momentum(LearningRule):
 
         updates = OrderedDict()
 
+        if self.clipping is not None:
+            grad_norm2_sqr = 0.
+            for (param, grad) in grads.iteritems():
+                grad_norm2_sqr = T.sqr(grad).sum()
+
+            clipper = T.minimum(T.sqrt(grad_norm2_sqr), self.clipping)\
+                / T.sqrt(grad_norm2_sqr)
+        else:
+            clipper = 1.
+
         for (param, grad) in grads.iteritems():
             vel = sharedX(param.get_value() * 0.)
             assert param.dtype == vel.dtype
@@ -149,7 +160,7 @@ class Momentum(LearningRule):
             if param.name is not None:
                 vel.name = 'vel_' + param.name
 
-            scaled_lr = learning_rate * lr_scalers.get(param, 1.)
+            scaled_lr = learning_rate * lr_scalers.get(param, 1.) * clipper
             updates[vel] = self.momentum * vel - scaled_lr * grad
 
             inc = updates[vel]

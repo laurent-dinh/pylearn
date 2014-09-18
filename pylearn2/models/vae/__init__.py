@@ -221,7 +221,7 @@ class VAE(Model):
         else:
             return reconstructed_X
 
-    def log_likelihood_lower_bound(self, X, num_samples, corruption=True):
+    def log_likelihood_lower_bound(self, X, num_samples, corruption=True, separate=False):
         """
         Computes the VAE lower-bound on the marginal log-likelihood of X.
 
@@ -258,8 +258,9 @@ class VAE(Model):
         if corruption:
             z = self.latent_corruptor(z)
         # Compute KL divergence term
-        kl_divergence_term = self.latent.kl_divergence_term(
-            X=X,
+        kl_divergence_term = self.latent._kl_divergence_term(
+            phi=phi,
+            epsilon=epsilon,
             per_component=False
         )
         # Compute expectation term
@@ -268,16 +269,19 @@ class VAE(Model):
         z = z.reshape((epsilon.shape[0] * epsilon.shape[1], epsilon.shape[2]))
         theta = self.visible.decode_theta(z)
         theta = tuple(
-            theta_i.reshape((epsilon.shape[0], epsilon.shape[1],
+            theta_i.reshape((num_samples, Y.shape[0],
                              theta_i.shape[1]))
             for theta_i in theta
         )
         expectation_term = self.visible.expectation_term(
             X=X.dimshuffle('x', 0, 1),
             theta=theta
-        ).mean(axis=0).sum(axis=1)
+        ).sum(axis=2)
 
-        return -kl_divergence_term + expectation_term
+        if separate:
+            return kl_divergence_term, expectation_term
+        else:
+            return -kl_divergence_term + expectation_term
 
     def log_likelihood_approximation(self, X, num_samples, corruption=True):
         """
