@@ -56,6 +56,7 @@ class Latent(Model):
         last layer **is** the output layer. Defaults to `True`.
     """
     def __init__(self, encoding_model, output_layer_required=True):
+        super(Latent, self).__init__()
         self.encoding_model = encoding_model
         self.output_layer_required = output_layer_required
 

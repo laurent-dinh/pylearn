@@ -50,6 +50,7 @@ class Visible(Model):
         last layer **is** the output layer. Defaults to `True`.
     """
     def __init__(self, decoding_model, output_layer_required=True):
+        super(Visible, self).__init__()
         self.decoding_model = decoding_model
         self.output_layer_required = output_layer_required
 
