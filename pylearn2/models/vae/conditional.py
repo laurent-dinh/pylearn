@@ -267,6 +267,30 @@ class Conditional(Model):
         raise NotImplementedError(str(self.__class__) + " does not implement "
                                   "log_conditional.")
 
+    def entropy(self, conditional_params, samples=None):
+        """
+        Given the conditional parameters, computes the entropy of this
+        distribution.
+
+        Parameters
+        ----------
+        conditional_params : tuple of tensor_like
+            Tuple of parameters for the conditional distribution
+        samples : tensor_like, optional
+            Conditional samples
+
+        Returns
+        -------
+        entropy : tensor_like
+        """
+        if samples is not None:
+            # Returns a Monte Carlo approximation of the KL divergence term.
+            return self.log_conditional(samples, conditional_params).mean(axis=0)
+        else:
+            raise NotImplementedError(str(self.__class__) + " does not implement "
+                                  "entropy without samples argument.")
+
+
 
 class BernoulliVector(Conditional):
     """
@@ -321,6 +345,18 @@ class BernoulliVector(Conditional):
         return -(
             samples * T.nnet.softplus(-S) + (1 - samples) * T.nnet.softplus(S)
         ).sum(axis=2)
+
+    @wraps(Conditional.entropy)
+    def entropy(self, conditional_params, samples=None):
+        # `conditional_params` is composed of pre-sigmoid activations; see
+        # `log_conditional` for more details.
+        (S, ) = conditional_params
+        p = T.nnet.sigmoid(S)
+        p_bar = T.nnet.sigmoid(-S)
+
+        return (
+            p * T.nnet.softplus(-S) + p_bar * T.nnet.softplus(S)
+        ).sum(axis=1)
 
 
 class DiagonalGaussian(Conditional):
@@ -403,3 +439,9 @@ class DiagonalGaussian(Conditional):
             T.log(2 * pi) + 2 * log_sigma + (samples - mu) ** 2 /
             T.exp(2 * log_sigma)
         ).sum(axis=2)
+ 
+    @wraps(Conditional.entropy)
+    def entropy(self, conditional_params, samples=None):
+        (mu, log_sigma) = conditional_params
+
+        return 0.5 * (T.log(2 * pi) + 1 + log_sigma).sum(axis=1)

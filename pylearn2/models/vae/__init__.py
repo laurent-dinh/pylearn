@@ -493,9 +493,9 @@ class VAE(Model):
             raise ValueError("stochastic KL is requested but no epsilon is "
                              "given")
         z = self.sample_from_q_z_given_x(epsilon=epsilon, phi=phi)
-        log_q_z_x = self.log_q_z_given_x(z=z, phi=phi)
+        posterior_entropy = self.posterior_entropy(phi=phi, z=z)
         log_p_z = self.log_p_z(z)
-        return (log_q_z_x - log_p_z).mean(axis=0)
+        return -(entropy + log_p_z).mean(axis=0)
 
     def per_component_kl_divergence_term(self, phi, theta):
         """
@@ -654,3 +654,21 @@ class VAE(Model):
             Log-posterior probabilities
         """
         return self.posterior.log_conditional(z, phi)
+
+    def posterior_entropy(self, phi, z):
+        """
+        Computes the posterior entropy
+
+        Parameters
+        ----------
+        phi : tuple of tensor_like
+            Tuple of parameters for the posterior distribution
+        z : tensor_like
+            Posterior samples
+
+        Returns
+        -------
+        posterior_entropy : tensor_like
+            Posterior entropy
+        """
+        return self.posterior.entropy(conditional_params=phi, samples=z)
