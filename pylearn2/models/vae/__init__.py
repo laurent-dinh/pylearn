@@ -495,7 +495,7 @@ class VAE(Model):
         z = self.sample_from_q_z_given_x(epsilon=epsilon, phi=phi)
         posterior_entropy = self.posterior_entropy(phi=phi, z=z)
         log_p_z = self.log_p_z(z)
-        return -(entropy + log_p_z).mean(axis=0)
+        return -(posterior_entropy + log_p_z).mean(axis=0)
 
     def per_component_kl_divergence_term(self, phi, theta):
         """
