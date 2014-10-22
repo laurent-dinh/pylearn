@@ -32,8 +32,8 @@ def _zero_pad(array, amount, axes=(1, 2)):
     The new array has the same dimensions as the input array, except for
     the dimensions given by <axes>, which are increased by 2*<amount>.
 
-    Parameters:
-    -----------
+    Parameters
+    ----------
     array: numpy.ndarray
       The array to zero-pad.
 
@@ -196,6 +196,9 @@ class WindowAndFlip(TrainExtension):
 
 class WindowAndFlipC01B(WindowAndFlip):
     """
+    WindowAndFlipC01B is deprecated, use WindowAndFlip.
+    WindowAndFlipC01B will be removed on or after August 25, 2014.
+
     A specialized version of WindowAndFlip accepting datasets with axes C01B.
     It exists due to backward compatibility.
 
