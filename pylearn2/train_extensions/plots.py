@@ -1,6 +1,5 @@
 __authors__ = ["Laurent Dinh", "Vincent Dumoulin"]
 
-
 import logging
 import os
 import os.path
@@ -23,21 +22,21 @@ import warnings
 from pylearn2.config import yaml_parse
 from pylearn2.gui.patch_viewer import PatchViewer
 
-
 log = logging.getLogger(__name__)
-
 
 
 def make_readable(fn):
     """
-    Make a file readable by all. 
+    Make a file readable by all.
     Practical when the plot is in your public_html.
+
 
     Parameters
     ----------
     fn : str
         Filename you wish to make public readable.
     """
+
     st = os.stat(fn)
 
     # Create the desired permission
@@ -49,11 +48,13 @@ def make_readable(fn):
     # Set the permission
     os.chmod(fn, st_mode | read_all)
 
+
 def get_best_layout(n_plots):
     """
     Find the best basic layout for a given number of plots.
-    Minimize the perimeter with a minimum area (n_plots) for
+    Minimize the perimeter with a minimum area (``n_plots``) for
     an integer rectangle.
+
 
     Parameters
     ----------
@@ -67,6 +68,7 @@ def get_best_layout(n_plots):
     n_cols :
         Number of columns in the layout
     """
+
     assert n_plots > 0
 
     # Initialize the layout
@@ -91,9 +93,11 @@ def get_best_layout(n_plots):
 
     return n_rows, n_cols
 
+
 def create_colors(n_colors):
     """
     Create an array of n_colors
+
 
     Parameters
     ----------
@@ -112,8 +116,8 @@ def create_colors(n_colors):
 
     # Set the color in HSV format
     colors_hsv = np.ones((n_colors, 3))
-    colors_hsv[:,2] *= .75
-    colors_hsv[:,0] = colors_hue
+    colors_hsv[:, 2] *= .75
+    colors_hsv[:, 0] = colors_hue
 
     # Put in a matplotlib-friendly format
     colors_hsv = colors_hsv.reshape((1, )+colors_hsv.shape)
@@ -122,7 +126,6 @@ def create_colors(n_colors):
     colors_rgb = colors_rgb[0]
 
     return colors_rgb
-
 
 
 class Plotter(object):
@@ -170,7 +173,8 @@ class Plotter(object):
         Parameters
         ----------
         public : bool
-            If public is True, then the associated files are readable by everyone
+            If public is True, then the associated files are
+            readable by everyone.
 
         """
         if public:
@@ -205,9 +209,9 @@ class Plots(Plotter):
         Passed on to the superclass.
     """
     def __init__(self, channel_names,
-                save_path, share=.8,
-                per_second=False,
-                ** kwargs):
+                 save_path, share=.8,
+                 per_second=False,
+                 ** kwargs):
         super(Plots, self).__init__(** kwargs)
 
         if not save_path.endswith('.png'):
@@ -243,10 +247,10 @@ class Plots(Plotter):
         # Keep the relevant part
         n_min = plots.shape[1]
         n_min -= int(np.ceil(plots.shape[1] * self.share))
-        plots = plots[:,n_min:]
+        plots = plots[:, n_min:]
 
         # Get the x axis
-        x = np.arange(plots.shape[1]) 
+        x = np.arange(plots.shape[1])
         x += n_min
 
         # Put in seconds if needed
@@ -260,7 +264,7 @@ class Plots(Plotter):
         plt.figure()
         for i in xrange(self.n_colors):
             plt.plot(x, plots[i], color=self.colors_rgb[i],
-                                  alpha=.5)
+                     alpha=.5)
 
         plt.legend(self.channel_names)
         plt.xlim(x[0], x[-1])
@@ -320,10 +324,10 @@ class SumOfPlots(Plots):
         # Keep the relevant part
         n_min = plots.shape[1]
         n_min -= int(np.ceil(plots.shape[1] * self.share))
-        plots = plots[:,n_min:]
+        plots = plots[:, n_min:]
 
         # Get the x axis
-        x = np.arange(plots.shape[1]) 
+        x = np.arange(plots.shape[1])
         x += n_min
 
         # Put in seconds if needed
@@ -336,19 +340,19 @@ class SumOfPlots(Plots):
         # Plot the quantities
         plt.figure()
 
-        plt.plot(x, plots[0], 
-                    color=self.colors_rgb[0],
-                    alpha=.5)
+        plt.plot(x, plots[0],
+                 color=self.colors_rgb[0],
+                 alpha=.5)
         plt.fill_between(x, np.zeros_like(x), plots[0],
-                        color=self.colors_rgb[0],
-                        alpha=.25)
+                         color=self.colors_rgb[0],
+                         alpha=.25)
 
         for i in xrange(self.n_colors-1):
             plt.plot(x, plots[i+1], color=self.colors_rgb[i+1],
-                                    alpha=.5)
-            plt.fill_between(x, plots[i], plots[i+1], 
-                            color=self.colors_rgb[i+1],
-                            alpha=.25)
+                     alpha=.5)
+            plt.fill_between(x, plots[i], plots[i+1],
+                             color=self.colors_rgb[i+1],
+                             alpha=.25)
 
         plt.legend(self.channel_names)
         plt.xlim(x[0], x[-1])
@@ -375,7 +379,7 @@ class PlotManager(TrainExtension):
 
     Parameters
     ----------
-    plots : list of rondoudou.pylearn2.train_extensions.Plotter
+    plots : list of pylearn2.train_extensions.Plotter
         List of plots to make during training
     freq : int
         The default number of epochs before producing plot.
@@ -442,10 +446,10 @@ class PlotManager(TrainExtension):
 
         self.count += 1
         for plot in self.plots:
-            if self.count%plot.freq == 0:
+            if self.count % plot.freq == 0:
                 try:
                     plot.plot()
                     plot.set_permissions(self.public)
                 except Exception as e:
                     warnings.warn(str(plot) + ' has failed.\n'
-                                + str(e))
+                                  + str(e))
