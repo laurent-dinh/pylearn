@@ -368,9 +368,7 @@ class SVHN_On_Memory(dense_design_matrix.DenseDesignMatrix):
 
             data = load(path)
             data_x = numpy.cast[config.floatX](data['X'])
-            import ipdb
-            ipdb.set_trace()
-            data_y = data['y']
+            data_y = data['y']-1
             del data
             gc.collect()
             return design_matrix_view(data_x), data_y
