@@ -71,6 +71,8 @@ import numpy as np
 try:
     import matplotlib
     matplotlib.use('Agg')
+except:
+    pass
 
 # Local imports
 from pylearn2.utils import serial
