@@ -13,10 +13,13 @@ import theano.tensor as T
 from pylearn2.utils import serial, as_floatX, function, wraps
 from pylearn2.utils.exc import reraise_as
 
-import matplotlib
-matplotlib.use('Agg')
-import matplotlib.pyplot as plt
-from matplotlib import animation
+try:
+    import matplotlib
+    matplotlib.use('Agg')
+    import matplotlib.pyplot as plt
+    from matplotlib import animation
+except:
+    pass
 
 import warnings
 from pylearn2.config import yaml_parse
