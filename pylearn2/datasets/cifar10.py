@@ -4,6 +4,7 @@
     WRITEME
 """
 import os
+import sys
 from theano.compat.six.moves import cPickle, xrange
 import logging
 _logger = logging.getLogger(__name__)
@@ -13,7 +14,7 @@ import warnings
 N = np
 from pylearn2.datasets import cache, dense_design_matrix
 from pylearn2.expr.preprocessing import global_contrast_normalize
-from pylearn2.utils import contains_nan
+from pylearn2.utils import contains_nan, serial
 
 
 class CIFAR10(dense_design_matrix.DenseDesignMatrix):
@@ -253,7 +254,6 @@ class CIFAR10(dense_design_matrix.DenseDesignMatrix):
         fname = cache.datasetCache.cache_file(fname)
 
         _logger.info('loading file %s' % fname)
-        fo = open(fname, 'rb')
-        dict = cPickle.load(fo, encoding='latin-1')
+        dict = serial.load(fn)
         fo.close()
         return dict
